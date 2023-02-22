@@ -19,8 +19,6 @@ bool payload_complete = false;
 char dummy[1] = { 0x0 };
 uint64_t payload_transmit_time = 0;
 
-bool flood;
-
 extern struct sockaddr_ll L_SOCKADDR;
 extern uint16_t pending_timeout_msec;
 extern uint16_t source_retransmit_payload_msec;
@@ -849,7 +847,7 @@ void handle_data(uint8_t *recv_frame) {
     memcpy(&in_frame, recv_frame, sizeof(eth_radio_btp_payload_t));
 
     // If the received tree id does not match ours, ignore.
-    if (!flood && self.tree_id != in_frame.btp_frame.btp.tree_id) {
+    if (self.tree_id != in_frame.btp_frame.btp.tree_id) {
         log_debug("This data frame is not for our tree. [our tree ID: %i, received tree ID: %i]", self.tree_id,
                   in_frame.btp_frame.btp.tree_id);
         return;
@@ -908,7 +906,7 @@ void handle_data(uint8_t *recv_frame) {
         return;
     }
 
-    if (hashmap_num_entries(self.children) > 0 || flood) {
+    if (hashmap_num_entries(self.children) > 0) {
         forward_payload(&in_frame);
     }
 }

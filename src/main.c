@@ -24,7 +24,7 @@
 
 extern self_t self;
 extern bool payload_complete;
-extern bool flood;
+bool flood;
 
 uint16_t pending_timeout_msec;
 uint16_t source_retransmit_payload_msec;
@@ -58,7 +58,7 @@ static char doc[] = "BTP -- Broadcast Tree Protocol";
 static char args_doc[] = "INTERFACE";
 static struct argp_option options[] = {
         {"source",             's', "payload", 0, "Path to the payload to be sent (omit this option for client mode)",                        0},
-        {"flood",              'd', 0,         0, "Whether to use simple flooding protocol or BTP",     0},
+        {"flood",              'd', 0,         0, "Whether to use maximum transmission power of fancy power calculations for efficiency",     0},
         {"log_level",          'l', "level",   0, "Log level\n0: QUIET, 1: TRACE, 2: DEBUG, 3: INFO (default),\n4: WARN, 5: ERROR, 6: FATAL", 1},
         {"log_file",           'f', "path",    0, "File path to log file.\nIf not present only stdout and stderr logging will be used",       1},
 
@@ -246,26 +246,18 @@ int event_loop(uint16_t poll_timeout_msec, uint16_t discovery_bcast_interval_mse
     int res;
     log_info("Waiting for BTP packets.");
     while (1) {
-        if (flood){
-            self.game_fin = true;
-        }
-
         // If we have received the entire payload, we can shutdown or execution.
         // If if we received the entire payload and have no children, we disconnect from our parent to notify them,
         // that we are finished.
-        if (!omit_roll_back && payload_complete) {
+        if (!omit_roll_back && payload_complete && hashmap_num_entries(self.children) == 0 && self_is_connected()) {
             log_info("Received entire payload and have no children. Disconnecting from parent.");
-            if (flood) {
-                return 0;
-            } else if (hashmap_num_entries(self.children) == 0 && self_is_connected()) {
-                disconnect_from_parent();
-                return 0;
-            }
+            disconnect_from_parent();
+            return 0;
         }
 
         uint64_t cur_time = get_time_msec();
         if (cur_time - bcast_send_time > discovery_bcast_interval_msec) {
-            if ((self.is_source || self_is_connected()) && !flood) {
+            if (self.is_source || self_is_connected()) {
                 broadcast_discovery();
             }
 
@@ -384,7 +376,7 @@ int main(int argc, char **argv) {
         exit(sockfd);
     }
 
-    if (strnlen(arguments.payload, PATH_MAX) != 0 && !flood) {
+    if (strnlen(arguments.payload, PATH_MAX) != 0) {
         broadcast_discovery();
     }
 
