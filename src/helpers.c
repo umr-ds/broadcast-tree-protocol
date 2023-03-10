@@ -288,7 +288,7 @@ void pprint_frame(eth_radio_btp_t *in_frame) {
               btp.parent_addr[0], btp.parent_addr[1], btp.parent_addr[2], btp.parent_addr[3], btp.parent_addr[4],
               btp.parent_addr[5],
               btp.high_pwr,
-              btp.snd_high_pwr,
+              btp.snd_high_pwr
     );
 }
 
