@@ -104,6 +104,7 @@ void init_self(mac_addr_t laddr, char *payload, char *if_name, int sockfd) {
     bool is_source = strlen(payload) == 0 ? false : true;
     self.is_source = is_source;
     self.payload_fd = open(payload, O_RDONLY);
+    self.seq_num = 0;
 
     self.children = malloc(sizeof(struct hashmap_s));
     if (hashmap_create(16, self.children) != 0) {
@@ -164,9 +165,7 @@ void send_payload(void) {
 
     payload_transmit_time = get_time_msec();
     int bytes_read = 1;
-    uint16_t seq_num = 0;
 
-    lseek(self.payload_fd, 0, SEEK_SET);
 
     struct stat file_stats;
     fstat(self.payload_fd, &file_stats);
@@ -180,29 +179,30 @@ void send_payload(void) {
     payload_frame.payload_header.payload_len = file_stats.st_size;
     payload_frame.payload_header.ttl = MAX_TTL;
 
-    log_debug("Starting chunking file for transfer.");
-    while (bytes_read > 0) {
-        if ((bytes_read = read(self.payload_fd, payload_frame.payload, MAX_PAYLOAD)) < 0) {
-            log_error("Could not read from file. [error: %s]", strerror(errno));
-            return;
-        }
+    lseek(self.payload_fd, self.seq_num * MAX_PAYLOAD, SEEK_SET);
 
-        if (bytes_read == 0) {
-            log_debug("Done reading file.");
-            break;
-        }
-
-        payload_frame.payload_header.payload_chunk_len = bytes_read;
-        payload_frame.payload_header.seq_num = seq_num++;
-
-        if (send_btp_frame((uint8_t *) &payload_frame, BTP_PAYLOAD_HEADER_SIZE + payload_frame.payload_header.payload_chunk_len, self.high_pwr) < 0) {
-            return;
-        }
-
-        log_debug("Successfully sent next chunk. [bytes_read: %i, seq_num: %i, tx_pwr: %i, data_len: %u]", bytes_read, payload_frame.payload_header.seq_num, self.high_pwr, BTP_PAYLOAD_HEADER_SIZE + payload_frame.payload_header.payload_chunk_len);
+    if ((bytes_read = read(self.payload_fd, payload_frame.payload, MAX_PAYLOAD)) < 0) {
+        log_error("Could not read from file. [error: %s]", strerror(errno));
+        return;
     }
 
-    log_info("Completely sent file.");
+    payload_frame.payload_header.payload_chunk_len = bytes_read;
+    payload_frame.payload_header.seq_num = self.seq_num;
+
+    if (send_btp_frame((uint8_t *) &payload_frame, BTP_PAYLOAD_HEADER_SIZE + payload_frame.payload_header.payload_chunk_len, self.high_pwr) < 0) {
+        log_error("Could not sent chunk.");
+        return;
+    }
+
+    self.seq_num += 1;
+
+    log_debug("Successfully sent next chunk. [bytes_read: %i, seq_num: %i, tx_pwr: %i, data_len: %u]", bytes_read, payload_frame.payload_header.seq_num, self.high_pwr, BTP_PAYLOAD_HEADER_SIZE + payload_frame.payload_header.payload_chunk_len);
+
+    if (bytes_read < (int) MAX_PAYLOAD) {
+        log_info("Completely sent file.");
+        self.seq_num = 0;
+    }
+
 }
 
 void cycle_detection_ping(eth_radio_btp_pts_t *in_frame) {

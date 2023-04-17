@@ -50,6 +50,7 @@ typedef struct {
     uint8_t round_unchanged_cnt; // counter for game rounds without topology changes. if reaches max, game ends
     char if_name[IFNAMSIZ]; // the interface name to be used
     int sockfd;
+    uint16_t seq_num; // the current sending offset of the payload
 } self_t;
 
 #endif // __TREE_H__
