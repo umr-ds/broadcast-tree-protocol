@@ -11,7 +11,7 @@
 
 #include <iwlib.h>
 
-#define MTU 1500
+#define MTU 1200
 #define BTP_HEADER_SIZE sizeof(eth_btp_t)
 #define BTP_PAYLOAD_HEADER_SIZE (sizeof(btp_payload_t) + BTP_HEADER_SIZE)
 #define MAX_PAYLOAD (MTU - (BTP_PAYLOAD_HEADER_SIZE))
