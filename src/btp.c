@@ -11,7 +11,7 @@
 self_t self = { 0x0 };
 
 uint8_t *payload_recv_buf = NULL;
-bool *seq_nums = NULL;
+uint64_t *seq_nums = NULL;
 uint16_t max_seq_num = 0;
 uint16_t seq_num_cnt = 0;
 bool payload_complete = false;
@@ -868,15 +868,14 @@ void handle_data(uint8_t *recv_frame) {
     if (!payload_recv_buf) {
         max_seq_num = (in_frame.payload_header.payload_len / MAX_PAYLOAD) + 1;
         payload_recv_buf = (uint8_t *) malloc(in_frame.payload_header.payload_len);
-        seq_nums = (bool *) malloc(sizeof(bool) * max_seq_num);
-        memset(seq_nums, 0, sizeof(bool) * max_seq_num);
+        seq_nums = (uint64_t *) malloc(sizeof(uint64_t) * max_seq_num);
+        memset(seq_nums, 0, sizeof(uint64_t) * max_seq_num);
         log_debug("Initialized receive buffer stuff. [total payload size: %i]", in_frame.payload_header.payload_len);
     }
 
-    if (!seq_nums[in_frame.payload_header.seq_num]) {
+    if (seq_nums[in_frame.payload_header.seq_num] == 0) {
         uint16_t offset = in_frame.payload_header.seq_num * MAX_PAYLOAD;
         memcpy(payload_recv_buf + offset, in_frame.payload, in_frame.payload_header.payload_chunk_len);
-        seq_nums[in_frame.payload_header.seq_num] = true;
         seq_num_cnt++;
         log_debug("Wrote payload chunk. [chunk size: %i, seq num: %i]", in_frame.payload_header.payload_chunk_len, in_frame.payload_header.seq_num);
 
@@ -906,9 +905,15 @@ void handle_data(uint8_t *recv_frame) {
         return;
     }
 
-    if (hashmap_num_entries(self.children) > 0) {
+
+    uint64_t wait_time = (source_retransmit_payload_msec * 2) - (uint64_t) (in_frame.payload_header.payload_chunk_len / 10);
+    if (seq_nums[in_frame.payload_header.seq_num] == 0 || get_time_msec() - seq_nums[in_frame.payload_header.seq_num] > (wait_time)) {
         forward_payload(&in_frame);
+    } else {
+        log_debug("Not forwarding payload. [time: %llu]", get_time_msec() - seq_nums[in_frame.payload_header.seq_num]);
     }
+
+    seq_nums[in_frame.payload_header.seq_num] = get_time_msec();
 }
 
 void handle_packet(uint8_t *recv_frame) {
