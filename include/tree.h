@@ -5,8 +5,7 @@
 #include "hashmap.h"
 
 #define MAX_BREADTH 10
-#define MAX_DEPTH 20
-#define MAX_TTL ((MAX_DEPTH * 2) + 1)
+#define MAX_TTL 10
 #define HASHMAP_KEY_SIZE 18
 
 /**
